@@ -3,7 +3,7 @@
 token.json
 credentials.json
 
-# Runtime data
+# Runtime data (auto-generated)
 data/expenses.db
 data/reminders.json
 data/notes.txt
@@ -24,25 +24,3 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
-
-# Build artifacts
-build/
-dist/
-
-# ESP32 firmware dumps
-*.bin
-fw_list.json
-
-# External repos (cloned for reference, not part of this project)
-xiaozhi-esp32/
-xiaozhi-esp32-server/
-xiaozhi-server/
-i2c-scanner/
-
-# PDF schematics (large, binary)
-*.pdf
-*.png
-schematic_*.png
-
-# Misc
-"New Text Document.txt"
