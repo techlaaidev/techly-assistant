@@ -36,37 +36,62 @@ from tools import (
     kb_search,
     home_assistant,
     calendar_gcal,
+    web_search,
+    apify_scraper,
+    memory_kg,
+    notion_workspace,
+    github_repo,
+    slack_chat,
+    file_ops,
+    url_fetch,
+    database,
+    telegram_bot,
 )
 
 mcp = FastMCP("Techla AI - Trợ lý")
 
-# Core tools (always on)
+# === Core tools (always on, no auth) ===
 company.register(mcp)
 time_tool.register(mcp)
 weather.register(mcp)
 notes.register(mcp)
 calc.register(mcp)
-
-# Info tools (no auth)
 news.register(mcp)
 finance.register(mcp)
 wiki.register(mcp)
 translate.register(mcp)
-
-# Personal data (local persistence)
 reminder.register(mcp)
 expense.register(mcp)
-
-# Knowledge base search
 kb_search.register(mcp)
+memory_kg.register(mcp)       # local JSON, no auth
+file_ops.register(mcp)        # local files, no auth
+url_fetch.register(mcp)       # plain HTTP, no auth
+database.register(mcp)        # local SQLite default
 
-# Optional: Home Assistant (only if configured)
+# === Conditional integrations (env-gated) ===
 if os.getenv("HA_URL") and os.getenv("HA_TOKEN"):
     home_assistant.register(mcp)
 
-# Optional: Google Calendar (only if access token configured)
 if os.getenv("GOOGLE_ACCESS_TOKEN"):
     calendar_gcal.register(mcp)
+
+if os.getenv("BRAVE_API_KEY"):
+    web_search.register(mcp)
+
+if os.getenv("APIFY_TOKEN"):
+    apify_scraper.register(mcp)
+
+if os.getenv("NOTION_TOKEN"):
+    notion_workspace.register(mcp)
+
+if os.getenv("GITHUB_TOKEN"):
+    github_repo.register(mcp)
+
+if os.getenv("SLACK_BOT_TOKEN"):
+    slack_chat.register(mcp)
+
+if os.getenv("TELEGRAM_BOT_TOKEN"):
+    telegram_bot.register(mcp)
 
 
 if __name__ == "__main__":
