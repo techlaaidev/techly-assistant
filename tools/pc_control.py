@@ -16,10 +16,39 @@ Safety:
 """
 import json
 import os
+import subprocess
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from ._common import _reply, DATA_DIR
+
+# Standard install paths (Windows). First existing path wins.
+APP_PATHS = {
+    "chrome": [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+    ],
+    "edge": [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ],
+    "notepad": [r"C:\Windows\System32\notepad.exe"],
+    "calc": [r"C:\Windows\System32\calc.exe"],
+    "calculator": [r"C:\Windows\System32\calc.exe"],
+    "explorer": [r"C:\Windows\explorer.exe"],
+    "cmd": [r"C:\Windows\System32\cmd.exe"],
+    "powershell": [r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"],
+}
+
+
+def _find_app(name: str) -> str | None:
+    """Resolve app name to executable path. None if not found."""
+    paths = APP_PATHS.get(name.lower(), [])
+    for p in paths:
+        if Path(p).is_file():
+            return p
+    return None
 
 try:
     import pyautogui
@@ -406,69 +435,117 @@ def register(mcp):
 
     @mcp.tool()
     def mo_app(ten_app: str) -> str:
-        """Mở một ứng dụng trên máy tính qua menu Start (Windows) hoặc Spotlight (macOS).
+        """Mở một ứng dụng trên máy tính bằng subprocess (không qua menu Start).
 
         GỌI TOOL NÀY KHI người dùng nói: "mở Notepad", "mở Word", "khởi động X".
+        Hỗ trợ apps: notepad, calc, calculator, explorer, cmd, powershell, edge.
+        Với app khác, fallback dùng Win+search.
+
         Args:
-            ten_app: tên app (notepad, calc, word, excel, ...)
+            ten_app: tên app (notepad, calc, edge, ...)
         """
         if err := _check():
             return err
+        path = _find_app(ten_app)
+        if path:
+            try:
+                subprocess.Popen([path])
+                return f"Đã mở {ten_app}."
+            except Exception as e:
+                return f"Lỗi mở {ten_app}: {str(e)[:100]}"
+        # Fallback: Win + search
         try:
-            pyautogui.press("win")  # Windows key
+            pyautogui.press("win")
             time.sleep(0.5)
             pyautogui.typewrite(ten_app, interval=0.05)
             time.sleep(0.5)
             pyautogui.press("enter")
-            return f"Đã mở {ten_app}."
+            return f"Đã mở {ten_app} (qua Start menu)."
         except Exception as e:
             return f"Lỗi: {str(e)[:100]}"
 
     @mcp.tool()
     def mo_chrome(url: str = "google.com") -> str:
-        """Mở Chrome trình duyệt và truy cập một URL.
+        """Mở Chrome (profile mặc định, bypass profile picker) và truy cập URL.
 
         GỌI TOOL NÀY MỖI KHI người dùng nói: "mở Chrome", "mở trình duyệt",
         "vào Chrome", "khởi động Chrome", "open chrome", "launch browser",
-        "vào internet", "truy cập website", "lên mạng".
-        Đây là tool ưu tiên cho Chrome thay vì mo_trinh_duyet hoặc mo_app.
+        "vào internet", "truy cập website", "lên mạng", "vào dantri", "vào X.com".
+
+        Mở qua subprocess.Popen với --profile-directory=Default → bỏ qua profile
+        picker, mở thẳng URL trong profile mặc định.
 
         Args:
             url: URL muốn mở (mặc định google.com)
         """
         if err := _check():
             return err
+        # Normalize URL
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+
+        chrome = _find_app("chrome")
+        if chrome:
+            try:
+                subprocess.Popen([
+                    chrome,
+                    "--profile-directory=Default",
+                    url,
+                ])
+                return f"Đã mở Chrome đến {url}."
+            except Exception as e:
+                return f"Lỗi mở Chrome: {str(e)[:100]}"
+
+        # Fallback: webbrowser stdlib
         try:
-            pyautogui.press("win")
-            time.sleep(0.6)
-            pyautogui.typewrite("chrome", interval=0.05)
-            time.sleep(0.7)
-            pyautogui.press("enter")
-            time.sleep(2.5)  # wait Chrome launch
-            pyautogui.hotkey("ctrl", "l")  # focus address bar
-            time.sleep(0.3)
-            pyautogui.typewrite(url, interval=0.03)
-            pyautogui.press("enter")
-            return f"Đã mở Chrome đến {url}."
+            import webbrowser
+            webbrowser.open(url)
+            return f"Đã mở browser mặc định đến {url}."
         except Exception as e:
-            return f"Lỗi mở Chrome: {str(e)[:100]}"
+            return f"Không mở được browser: {str(e)[:100]}"
 
     @mcp.tool()
-    def mo_notepad() -> str:
-        """Mở ứng dụng Notepad (sổ tay ghi chú trên Windows).
+    def mo_chrome_an_danh(url: str = "google.com") -> str:
+        """Mở Chrome ở chế độ ẩn danh (incognito) và truy cập URL.
 
-        GỌI TOOL NÀY MỖI KHI người dùng nói: "mở Notepad", "mở sổ tay",
-        "open notepad", "khởi động Notepad", "vào Notepad", "mở text editor".
-        Đây là tool ưu tiên cho Notepad thay vì mo_app generic.
+        GỌI TOOL NÀY KHI người dùng nói: "mở Chrome ẩn danh", "incognito",
+        "chế độ riêng tư", "không lưu lịch sử".
+
+        Args:
+            url: URL muốn mở (mặc định google.com)
         """
         if err := _check():
             return err
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        chrome = _find_app("chrome")
+        if not chrome:
+            return "Không tìm thấy Chrome trên máy."
         try:
-            pyautogui.press("win")
-            time.sleep(0.5)
-            pyautogui.typewrite("notepad", interval=0.05)
-            time.sleep(0.6)
-            pyautogui.press("enter")
-            return "Đã mở Notepad."
+            subprocess.Popen([
+                chrome,
+                "--profile-directory=Default",
+                "--incognito",
+                url,
+            ])
+            return f"Đã mở Chrome ẩn danh đến {url}."
         except Exception as e:
-            return f"Lỗi mở Notepad: {str(e)[:100]}"
+            return f"Lỗi: {str(e)[:100]}"
+
+    @mcp.tool()
+    def mo_notepad() -> str:
+        """Mở Notepad qua subprocess (không qua Start menu).
+
+        GỌI TOOL NÀY MỖI KHI người dùng nói: "mở Notepad", "mở sổ tay",
+        "open notepad", "khởi động Notepad", "vào Notepad", "mở text editor".
+        """
+        if err := _check():
+            return err
+        path = _find_app("notepad")
+        if path:
+            try:
+                subprocess.Popen([path])
+                return "Đã mở Notepad."
+            except Exception as e:
+                return f"Lỗi mở Notepad: {str(e)[:100]}"
+        return "Không tìm thấy notepad.exe."
