@@ -7,6 +7,11 @@ credentials.json
 data/expenses.db
 data/reminders.json
 data/notes.txt
+data/pc_mode.json
+data/memory.json
+data/screenshots/
+data/files/
+data/user.db
 notes.txt
 
 # Python
