@@ -28,8 +28,31 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from ._common import _reply, DATA_DIR
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+# OPENAI_API_KEY read at call-time (not module load) so user can update
+# .env without restarting the server.
 OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o")
+
+
+def _get_openai_key() -> str:
+    """Read OPENAI_API_KEY from .env file freshly at call-time.
+
+    This bypasses os.environ cache so user can update .env without
+    restarting the MCP server.
+    """
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    if key:
+        return key
+    # Re-parse .env file
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("OPENAI_API_KEY=") and not line.startswith("#"):
+                value = line.partition("=")[2].strip().strip('"').strip("'")
+                if value:
+                    os.environ["OPENAI_API_KEY"] = value  # cache for next call
+                    return value
+    return ""
 
 # Standard install paths (Windows). First existing path wins.
 APP_PATHS = {
@@ -584,8 +607,15 @@ def register(mcp):
         """
         if err := _check():
             return err
-        if not OPENAI_API_KEY:
-            return "Click thông minh cần OPENAI_API_KEY trong .env."
+        # Read at call-time (re-parses .env) so user can edit .env without restart
+        api_key = _get_openai_key()
+        if not api_key:
+            return (
+                "Click thông minh cần OPENAI_API_KEY. "
+                "Thêm vào file .env dòng: OPENAI_API_KEY=sk-... "
+                "Lấy key tại platform.openai.com/api-keys. "
+                "Sau đó gọi lại tool này (không cần restart server)."
+            )
 
         try:
             # 1. Screenshot to base64
@@ -629,7 +659,7 @@ def register(mcp):
                 data=json.dumps(payload).encode("utf-8"),
                 headers={
                     "Content-Type": "application/json",
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Authorization": f"Bearer {api_key}",
                 },
             )
             with urllib.request.urlopen(req, timeout=30) as resp:
