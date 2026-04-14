@@ -4,6 +4,9 @@ Requires:
     pip install pyautogui pyperclip
     ENABLE_PC_CONTROL=1 in .env
 
+Optional smart click:
+    OPENAI_API_KEY=sk-... in .env  (enables click_thong_minh tool)
+
 Two-layer gating:
     1. Admin: ENABLE_PC_CONTROL env var (server-level switch)
     2. User: runtime mode flag, set via voice "bật chế độ điều khiển máy tính"
@@ -14,13 +17,19 @@ Safety:
     - All actions log to stderr for monitoring
     - Recipes use small delays to look natural for demo
 """
+import base64
+import io
 import json
 import os
 import subprocess
 import time
+import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 from ._common import _reply, DATA_DIR
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o")
 
 # Standard install paths (Windows). First existing path wins.
 APP_PATHS = {
@@ -549,3 +558,107 @@ def register(mcp):
             except Exception as e:
                 return f"Lỗi mở Notepad: {str(e)[:100]}"
         return "Không tìm thấy notepad.exe."
+
+    # ===================================================================
+    # Smart click via OpenAI Vision (GPT-4o)
+    # ===================================================================
+
+    @mcp.tool()
+    def click_thong_minh(mo_ta: str) -> str:
+        """Click vào element trên màn hình bằng mô tả tự nhiên (dùng AI vision).
+
+        GỌI TOOL NÀY KHI người dùng nói: "click vào X", "nhấn vào nút Y",
+        "chọn mục Z" mà X/Y/Z là MÔ TẢ chứ không phải tọa độ cụ thể.
+        Ví dụ: "click vào mục giải trí", "nhấn nút đăng nhập", "chọn tab thể thao".
+
+        Cách hoạt động:
+        1. Chụp màn hình hiện tại
+        2. Gửi screenshot + mô tả tới OpenAI GPT-4o vision
+        3. AI trả về tọa độ (x, y) của element
+        4. Click vào tọa độ đó
+
+        Yêu cầu: OPENAI_API_KEY trong .env. Nếu không có sẽ báo lỗi.
+
+        Args:
+            mo_ta: Mô tả element cần click (vd "nút giải trí trên menu")
+        """
+        if err := _check():
+            return err
+        if not OPENAI_API_KEY:
+            return "Click thông minh cần OPENAI_API_KEY trong .env."
+
+        try:
+            # 1. Screenshot to base64
+            screenshot = pyautogui.screenshot()
+            buf = io.BytesIO()
+            screenshot.save(buf, format="PNG")
+            img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            w, h = screenshot.size
+
+            # 2. Call OpenAI vision API
+            payload = {
+                "model": OPENAI_VISION_MODEL,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                f"Đây là screenshot màn hình {w}x{h} pixel. "
+                                f"Tìm vị trí pixel CHÍNH GIỮA của element được mô tả: "
+                                f'"{mo_ta}". '
+                                f"Trả về CHÍNH XÁC theo format JSON, không text khác:\n"
+                                f'{{"x": <số>, "y": <số>, "found": true}}\n'
+                                f'Nếu không tìm thấy: {{"x": 0, "y": 0, "found": false}}'
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{img_b64}",
+                                "detail": "high",
+                            },
+                        },
+                    ],
+                }],
+                "max_tokens": 200,
+                "temperature": 0,
+            }
+            req = urllib.request.Request(
+                "https://api.openai.com/v1/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            content = data["choices"][0]["message"]["content"].strip()
+
+            # Parse JSON, handle markdown code blocks
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+                content = content.strip()
+
+            result = json.loads(content)
+            if not result.get("found"):
+                return f"AI không tìm thấy '{mo_ta}' trên màn hình."
+
+            x = int(result["x"])
+            y = int(result["y"])
+            if x < 0 or x >= w or y < 0 or y >= h:
+                return f"AI trả về tọa độ ngoài màn hình ({x},{y})."
+
+            # 3. Click
+            pyautogui.click(x, y)
+            return f"Đã click '{mo_ta}' tại ({x}, {y})."
+        except urllib.error.HTTPError as e:
+            return f"Lỗi OpenAI API: {e.code} {e.reason}"
+        except json.JSONDecodeError:
+            return f"AI trả về không đúng JSON: {content[:100]}"
+        except Exception as e:
+            return f"Lỗi click thông minh: {str(e)[:150]}"

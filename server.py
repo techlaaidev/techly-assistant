@@ -47,6 +47,7 @@ from tools import (
     database,
     telegram_bot,
     pc_control,
+    browser_playwright,
 )
 
 mcp = FastMCP("Techla AI - Trợ lý")
@@ -96,6 +97,9 @@ if os.getenv("TELEGRAM_BOT_TOKEN"):
 
 if os.getenv("ENABLE_PC_CONTROL", "").lower() in ("1", "true", "yes"):
     pc_control.register(mcp)
+
+if os.getenv("ENABLE_BROWSER_PLAYWRIGHT", "").lower() in ("1", "true", "yes"):
+    browser_playwright.register(mcp)
 
 
 if __name__ == "__main__":
