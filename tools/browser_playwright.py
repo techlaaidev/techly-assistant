@@ -10,7 +10,6 @@ instance shared across tool calls. Each tool gates on PC mode.
 """
 import re
 from ._common import _reply
-from . import pc_control  # for mode check
 
 try:
     from playwright.async_api import async_playwright
@@ -28,8 +27,6 @@ _browser_state = {
 def _check() -> str | None:
     if not HAS_PLAYWRIGHT:
         return "Playwright chưa cài. Chạy: pip install playwright && python -m playwright install chromium"
-    if not pc_control._is_mode_active():
-        return pc_control.PC_MODE_DISABLED_MSG
     return None
 
 

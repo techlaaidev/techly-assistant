@@ -7,10 +7,8 @@ Requires:
 Optional smart click:
     OPENAI_API_KEY=sk-... in .env  (enables click_thong_minh tool)
 
-Two-layer gating:
-    1. Admin: ENABLE_PC_CONTROL env var (server-level switch)
-    2. User: runtime mode flag, set via voice "bật chế độ điều khiển máy tính"
-       Auto-expires after 5 minutes. Persisted to data/pc_mode.json.
+Single gate: ENABLE_PC_CONTROL env var (server-level switch).
+Tools work directly without runtime mode.
 
 Safety:
     - PyAutoGUI fail-safe: move cursor to top-left corner (0,0) to abort
@@ -24,7 +22,7 @@ import os
 import subprocess
 import time
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from ._common import _reply, DATA_DIR
 
@@ -93,118 +91,15 @@ except ImportError:
 SCREENSHOTS_DIR = DATA_DIR / "screenshots"
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
-PC_MODE_FILE = DATA_DIR / "pc_mode.json"
-PC_MODE_DURATION = timedelta(minutes=5)
-PC_MODE_DISABLED_MSG = (
-    "Chế độ điều khiển máy tính chưa bật. "
-    "Hãy nói 'bật chế độ điều khiển máy tính' trước."
-)
 
-
-def _is_mode_active() -> bool:
-    """Return True if PC mode is currently enabled and not expired."""
-    if not PC_MODE_FILE.exists():
-        return False
-    try:
-        data = json.loads(PC_MODE_FILE.read_text(encoding="utf-8"))
-        expires_at = datetime.fromisoformat(data["expires_at"])
-        return datetime.now() < expires_at
-    except Exception:
-        return False
-
-
-def _enable_mode() -> datetime:
-    """Enable PC mode for PC_MODE_DURATION. Returns expiry timestamp."""
-    expires_at = datetime.now() + PC_MODE_DURATION
-    PC_MODE_FILE.write_text(
-        json.dumps({
-            "enabled_at": datetime.now().isoformat(),
-            "expires_at": expires_at.isoformat(),
-        }, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    return expires_at
-
-
-def _disable_mode() -> None:
-    if PC_MODE_FILE.exists():
-        PC_MODE_FILE.unlink()
-
-
-def _check_lib() -> str | None:
-    """Check pyautogui is installed (for gate tools that bypass mode check)."""
+def _check() -> str | None:
+    """Return error string if pyautogui not installed, else None."""
     if not HAS_PYAUTOGUI:
         return "PyAutoGUI chưa cài. Chạy: pip install pyautogui"
     return None
 
 
-def _check() -> str | None:
-    """Check pyautogui ready AND PC mode is active. Used by all action tools."""
-    err = _check_lib()
-    if err:
-        return err
-    if not _is_mode_active():
-        return PC_MODE_DISABLED_MSG
-    return None
-
-
 def register(mcp):
-    # ===================================================================
-    # Mode gate (always available, bypass mode check)
-    # ===================================================================
-
-    @mcp.tool()
-    def bat_che_do_dieu_khien_may_tinh() -> str:
-        """Bật chế độ điều khiển máy tính. Sau khi bật, các tool điều khiển chuột,
-        bàn phím, mở app sẽ hoạt động trong 5 phút.
-
-        GỌI TOOL NÀY KHI người dùng nói: "bật chế độ điều khiển máy tính",
-        "kích hoạt chế độ điều khiển", "cho phép điều khiển máy", "enable PC control",
-        "bật chế độ máy tính", "vào chế độ điều khiển".
-        """
-        if err := _check_lib():
-            return err
-        expires_at = _enable_mode()
-        return (
-            f"Đã bật chế độ điều khiển máy tính. "
-            f"Hết hạn lúc {expires_at.strftime('%H:%M')}. "
-            f"Bây giờ bạn có thể yêu cầu mở app, click chuột, gõ phím."
-        )
-
-    @mcp.tool()
-    def tat_che_do_dieu_khien_may_tinh() -> str:
-        """Tắt ngay chế độ điều khiển máy tính (không cần đợi hết 5 phút).
-
-        GỌI TOOL NÀY KHI người dùng nói: "tắt chế độ điều khiển máy tính",
-        "ngừng điều khiển máy", "khoá điều khiển", "disable PC control".
-        """
-        _disable_mode()
-        return "Đã tắt chế độ điều khiển máy tính."
-
-    @mcp.tool()
-    def trang_thai_che_do_dieu_khien() -> str:
-        """Kiểm tra chế độ điều khiển máy tính đang bật hay tắt.
-
-        GỌI TOOL NÀY KHI người dùng hỏi: "chế độ điều khiển có đang bật không",
-        "PC control status", "kiểm tra chế độ điều khiển".
-        """
-        if not PC_MODE_FILE.exists():
-            return _reply("Chế độ điều khiển máy tính: TẮT.")
-        try:
-            data = json.loads(PC_MODE_FILE.read_text(encoding="utf-8"))
-            expires_at = datetime.fromisoformat(data["expires_at"])
-            if datetime.now() < expires_at:
-                remaining = expires_at - datetime.now()
-                mins = int(remaining.total_seconds() // 60)
-                secs = int(remaining.total_seconds() % 60)
-                return _reply(
-                    f"Chế độ điều khiển máy tính: BẬT. "
-                    f"Còn {mins} phút {secs} giây."
-                )
-            return _reply("Chế độ điều khiển máy tính: TẮT (đã hết hạn).")
-        except Exception as e:
-            return f"Lỗi đọc trạng thái: {str(e)[:100]}"
-
     # ===================================================================
     # Mouse control
     # ===================================================================
