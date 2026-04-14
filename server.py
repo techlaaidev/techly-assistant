@@ -46,6 +46,7 @@ from tools import (
     url_fetch,
     database,
     telegram_bot,
+    pc_control,
 )
 
 mcp = FastMCP("Techla AI - Trợ lý")
@@ -92,6 +93,9 @@ if os.getenv("SLACK_BOT_TOKEN"):
 
 if os.getenv("TELEGRAM_BOT_TOKEN"):
     telegram_bot.register(mcp)
+
+if os.getenv("ENABLE_PC_CONTROL", "").lower() in ("1", "true", "yes"):
+    pc_control.register(mcp)
 
 
 if __name__ == "__main__":
