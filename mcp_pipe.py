@@ -25,13 +25,6 @@ if not WSS_URL:
         "XIAOZHI_MCP_WSS=wss://api.xiaozhi.me/mcp/?token=YOUR_TOKEN"
     )
 
-def is_json(text: str) -> bool:
-    try:
-        json.loads(text)
-        return True
-    except Exception:
-        return False
-
 def patch_response(raw: str) -> str:
     try:
         msg = json.loads(raw)
@@ -85,16 +78,11 @@ async def main():
     async with websockets.connect(WSS_URL) as ws:
         print("✅ Đã kết nối Xiaozhi")
 
-        async def stderr_to_xiaozhi():
+        async def stderr_logger():
             while True:
                 line = await proc.stderr.readline()
                 if line:
-                    text = line.decode().strip()
-                    if is_json(text):
-                        print(f"🔔 notify → Xiaozhi: {text}")
-                        await ws.send(text)
-                    else:
-                        print(f"🔴 stderr: {text}")
+                    print(f"🔴 stderr: {line.decode('utf-8', errors='replace').strip()}")
 
         async def xiaozhi_to_mcp_server():
             async for msg in ws:
@@ -122,12 +110,12 @@ async def main():
             while True:
                 line = await proc.stdout.readline()
                 if line:
-                    patched = patch_response(line.decode().strip())
+                    patched = patch_response(line.decode("utf-8", errors="replace").strip())
                     print(f"📤 MCP → Xiaozhi: {patched}")
                     await ws.send(patched)
 
         await asyncio.gather(
-            stderr_to_xiaozhi(),
+            stderr_logger(),
             xiaozhi_to_mcp_server(),
             mcp_server_to_xiaozhi()
         )

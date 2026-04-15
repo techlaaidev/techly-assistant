@@ -423,6 +423,89 @@ Cần `TELEGRAM_BOT_TOKEN`.
 
 ---
 
+## ⏰ Scheduler — proactive Telegram notifications (env-gated, 3 tools)
+
+Cần `ENABLE_SCHEDULER=1` + `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. Khác `reminder` thường: tool này **đẩy thông báo chủ động** xuống điện thoại qua Telegram bot, không cần hỏi lại.
+
+### `dat_lich_nhac_chu_dong`
+- "Nhắc tôi uống nước sau 30 phút"
+- "Thông báo cho tôi đi họp sau 15 phút"
+- "Đặt lịch nhắc 2 tiếng nữa gọi khách hàng"
+- "Nhắc anh sau 1 tuần kiểm tra báo cáo"
+
+### `xem_lich_nhac_chu_dong`
+- "Có nhắc nhở nào không"
+- "Xem các thông báo đã đặt"
+- "Lịch nhắc chủ động đang chờ"
+
+### `xoa_lich_nhac_chu_dong`
+- "Hủy lịch nhắc a1b2c3d4"
+- "Xóa thông báo 12345678"
+- "Bỏ lịch nhắc [mã]"
+
+---
+
+## 🖥️ PC Control — PyAutoGUI automation (env-gated, 18 tools)
+
+Cần `ENABLE_PC_CONTROL=1` + `pip install pyautogui pyperclip`. Fail-safe: chuột về (0,0) để abort.
+
+### Mouse / Keyboard
+- "Click chuột" → `click_chuot`
+- "Click đúp" / "Double click" → `double_click`
+- "Click phải" → `click_phai`
+- "Di chuột sang 500 300" → `move_chuot`
+- "Cuộn xuống" / "Cuộn lên 5 lần" → `cuon_man_hinh`
+- "Gõ chữ hello world" → `go_chu`
+- "Dán chữ: chào buổi sáng" (tiếng Việt có dấu) → `dan_text`
+- "Nhấn enter" / "Nhấn tab" → `nhan_phim`
+- "Ctrl C" / "Ctrl V" / "Alt Tab" → `phim_tat`
+
+### Screen info
+- "Kích thước màn hình" → `kich_thuoc_man_hinh`
+- "Vị trí chuột hiện tại" → `vi_tri_chuot_hien_tai`
+- "Chụp màn hình" → `chup_man_hinh`
+
+### Launch apps
+- "Mở Chrome" / "Mở Chrome vào youtube.com" → `mo_chrome`
+- "Mở Chrome ẩn danh" → `mo_chrome_an_danh`
+- "Mở Notepad" → `mo_notepad`
+- "Mở app Spotify" / "Mở Zalo" → `mo_app`
+- "Mở trình duyệt google.com" → `mo_trinh_duyet`
+- "Tìm Google về Vingroup" → `tim_kiem_google`
+
+---
+
+## 🌐 Browser Playwright (env-gated, 6 tools)
+
+Cần `ENABLE_BROWSER_PLAYWRIGHT=1` + `pip install playwright` + `python -m playwright install chromium`. Dùng Chromium thật (không phải PyAutoGUI). Hỗ trợ semantic click bằng text.
+
+### `mo_chrome_playwright`
+- "Vào trang vnexpress.net"
+- "Mở https://google.com bằng Playwright"
+
+### `click_chu_trong_browser`
+- "Click vào chữ 'Tin mới nhất'"
+- "Bấm nút Đăng nhập"
+- "Click link Liên hệ"
+
+### `dien_form_browser`
+- "Điền email 'abc@gmail.com'"
+- "Điền ô tìm kiếm 'Python tutorial'"
+
+### `lay_noi_dung_trang_browser`
+- "Đọc nội dung trang này"
+- "Lấy text trang hiện tại"
+
+### `cuon_trang_browser`
+- "Cuộn trang xuống"
+- "Cuộn lên đầu trang"
+
+### `dong_browser_playwright`
+- "Đóng trình duyệt"
+- "Đóng Playwright"
+
+---
+
 ## 🎯 Tips để test hiệu quả
 
 1. **Hỏi natural** — không cần nhớ đúng tên tool, nói tự nhiên

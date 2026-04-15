@@ -1,8 +1,8 @@
 # Techly Assistant
 
-MCP server cung cấp 40+ custom tools tiếng Việt cho voice assistant Xiaozhi (ESP32-S3 + cloud).
+MCP server cung cấp **85 custom tools** tiếng Việt cho voice assistant Xiaozhi (ESP32-S3 + cloud).
 
-Bridge giữa Xiaozhi cloud (WebSocket) ↔ stdio MCP server với tools cho business + personal use.
+Bridge giữa Xiaozhi cloud (WebSocket) ↔ stdio MCP server với tools cho business + personal use + PC automation.
 
 ## Architecture
 
@@ -13,12 +13,14 @@ ESP32 (mic/loa) ↔ Xiaozhi cloud (ASR/LLM/TTS) ↔ MCP endpoint WebSocket
                                                         ↓
                                               server.py (FastMCP stdio)
                                                         ↓
-                                              tools/ (24 modules)
+                                              tools/ (27 modules, 85 tools)
 ```
+
+**Proactive channel:** Xiaozhi cloud là MCP client pull-only — server **không** push TTS ngược về ESP32. Thông báo chủ động (reminder, alert) đi qua **Telegram bot** (`tools/scheduler.py` + `tools/telegram_bot.py`).
 
 ## Tools overview
 
-**42+ tools active** (50 khi config đủ env vars). Chỉ dùng Python stdlib, không phụ thuộc nặng.
+**85 tools / 27 modules.** 39 always-on, 46 env-gated. Stdlib-first, optional deps chỉ khi bật feature tương ứng.
 
 ### ✅ Always-on (16 modules, no auth)
 
@@ -53,6 +55,9 @@ ESP32 (mic/loa) ↔ Xiaozhi cloud (ASR/LLM/TTS) ↔ MCP endpoint WebSocket
 | `github_repo.py` | 3 | `GITHUB_TOKEN`, `GITHUB_REPO` | PRs / Issues / Commits |
 | `slack_chat.py` | 2 | `SLACK_BOT_TOKEN` | Post / đọc Slack messages |
 | `telegram_bot.py` | 2 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Gửi / đọc Telegram |
+| `pc_control.py` | 18 | `ENABLE_PC_CONTROL=1` | Mở app, click, gõ phím, chụp màn hình (PyAutoGUI) |
+| `browser_playwright.py` | 6 | `ENABLE_BROWSER_PLAYWRIGHT=1` | Điều khiển Chromium (click semantic, fill form, scrape) |
+| `scheduler.py` | 3 | `ENABLE_SCHEDULER=1` + Telegram | Lịch nhắc chủ động — đẩy thông báo qua Telegram |
 
 ## Setup
 
@@ -62,7 +67,12 @@ ESP32 (mic/loa) ↔ Xiaozhi cloud (ASR/LLM/TTS) ↔ MCP endpoint WebSocket
 pip install -r requirements.txt
 ```
 
-Chỉ cần: `mcp`, `websockets`, `dateparser`.
+Core: `mcp`, `websockets`, `dateparser`.
+
+Optional (chỉ cài khi bật feature tương ứng):
+- `apscheduler` — khi `ENABLE_SCHEDULER=1`
+- `pyautogui`, `pyperclip` — khi `ENABLE_PC_CONTROL=1`
+- `playwright` + `python -m playwright install chromium` — khi `ENABLE_BROWSER_PLAYWRIGHT=1`
 
 ### 2. Configure `.env`
 
@@ -130,6 +140,9 @@ Output mong đợi:
 - "Gửi Slack 'meeting 3h'" (Slack)
 - "Bật đèn phòng khách" (Home Assistant)
 - "Lịch hôm nay" (Google Calendar)
+- "Mở Chrome", "chụp màn hình" (PC Control)
+- "Vào vnexpress.net rồi click tin mới nhất" (Browser Playwright)
+- "Nhắc tôi sau 30 phút uống nước" → đẩy qua Telegram (Scheduler)
 
 ## Project structure
 
@@ -164,7 +177,10 @@ Output mong đợi:
 │   ├── notion_workspace.py
 │   ├── github_repo.py
 │   ├── slack_chat.py
-│   └── telegram_bot.py
+│   ├── telegram_bot.py
+│   ├── pc_control.py          # PyAutoGUI automation (ENABLE_PC_CONTROL)
+│   ├── browser_playwright.py  # Chromium control (ENABLE_BROWSER_PLAYWRIGHT)
+│   └── scheduler.py           # proactive Telegram notifications (ENABLE_SCHEDULER)
 │
 ├── data/
 │   ├── knowledge_base/        # markdown files for kb_search
@@ -176,7 +192,8 @@ Output mong đợi:
 │
 ├── company_data.md            # company info used by company.py
 ├── docs/
-│   └── xiaozhi-agent-system-prompt.md  # paste into xiaozhi.me dashboard
+│   ├── xiaozhi-agent-system-prompt.md  # paste into xiaozhi.me dashboard
+│   └── voice-commands-examples.md      # trigger phrases for every tool
 ├── plans/                     # implementation plans + research reports
 ├── requirements.txt
 ├── .env                       # local secrets, gitignored
@@ -223,12 +240,14 @@ def register(mcp):
 
 ## Security
 
-- **`.env` gitignored** — chứa tokens (Xiaozhi JWT, Google access, HA, GitHub, Slack, Telegram, Apify, Brave, Notion)
+- **`.env` gitignored** — chứa tokens (Xiaozhi JWT, Google access, HA, GitHub, Slack, Telegram, Apify, Brave, Notion, OpenAI)
 - **No hardcoded secrets** — `mcp_pipe.py` + `server.py` đều đọc từ env
 - **Database read-only** — whitelist regex chỉ cho `SELECT`, block `INSERT/UPDATE/DELETE/DROP/...`
 - **File ops sandboxed** — chỉ trong `data/files/`, prevent directory traversal qua `Path.resolve()` check
 - **Calculator safe eval** — whitelist `[0-9 +\-*/()]` only, `{"__builtins__": {}}` context
 - **HTTP timeouts** — tất cả calls có `timeout=10` + `try/except` wrap
+- **PC control opt-in** — `pc_control` chỉ load khi `ENABLE_PC_CONTROL=1`. Fail-safe: move chuột về (0,0) để abort action đang chạy
+- **Browser opt-in** — `browser_playwright` chỉ load khi `ENABLE_BROWSER_PLAYWRIGHT=1`
 - **Privacy block hook** — Claude Code tự động block read `.env` trừ khi user approve
 
 ## Performance
@@ -240,17 +259,11 @@ def register(mcp):
 
 ## Known limitations
 
+- **Pull-only MCP** — Xiaozhi cloud là MCP client, server không push được TTS xuống ESP32 ngoài phản hồi tool call. Workaround: proactive notification đi qua Telegram (`scheduler.py` + `telegram_bot.py`).
+- **Scheduler jobstore in-memory** — lịch nhắc mất sau restart server. Upgrade path: `SQLAlchemyJobStore` để persist.
 - **Google Calendar access token expires ~1h** — cần external refresh system
 - **Speculative TTS** — xiaozhi cloud có thể speak filler trước khi tool trả về data. Fix bằng system prompt ở dashboard (file `docs/xiaozhi-agent-system-prompt.md`).
 - **Function calling reliability** — GPT-5 đôi khi hallucinate tool call trong text thay vì native function call. Mitigation: verbose tool descriptions + system prompt strict.
-
-## Commits
-
-```
-fe35dc3 feat: add 10 new MCP integrations (web search, scraping, memory, etc.)
-249defa chore: clean up unused external clones and binary files
-6422ab7 feat: initial Techly Assistant MCP server with 28 Vietnamese tools
-```
 
 ## License
 

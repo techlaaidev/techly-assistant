@@ -48,6 +48,7 @@ from tools import (
     telegram_bot,
     pc_control,
     browser_playwright,
+    scheduler,
 )
 
 mcp = FastMCP("Techla AI - Trợ lý")
@@ -100,6 +101,9 @@ if os.getenv("ENABLE_PC_CONTROL", "").lower() in ("1", "true", "yes"):
 
 if os.getenv("ENABLE_BROWSER_PLAYWRIGHT", "").lower() in ("1", "true", "yes"):
     browser_playwright.register(mcp)
+
+if os.getenv("ENABLE_SCHEDULER", "").lower() in ("1", "true", "yes"):
+    scheduler.register(mcp)
 
 
 if __name__ == "__main__":

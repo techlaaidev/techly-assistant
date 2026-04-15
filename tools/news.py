@@ -36,7 +36,7 @@ def _parse_rss(url: str, limit: int = 5) -> list:
 
 
 def register(mcp):
-    @mcp.tool()
+    # @mcp.tool()  # disabled — use tro_ly for any news/web reading
     def lay_tin_moi_nhat() -> str:
         """Trả về 5 tin tức mới nhất từ các báo lớn Việt Nam (VnExpress, Tuổi Trẻ, Thanh Niên).
 
@@ -54,7 +54,7 @@ def register(mcp):
         output = "\n".join(f"{i+1}. {h}" for i, h in enumerate(all_headlines[:5]))
         return _reply(output)
 
-    @mcp.tool()
+    # @mcp.tool()  # disabled — use tro_ly for any news/web reading
     def doc_bao(nguon: str = "vnexpress") -> str:
         """Trả về 5 tin mới nhất từ một nguồn báo cụ thể.
 

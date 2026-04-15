@@ -27,7 +27,7 @@ def _strip_html(html: str) -> str:
 
 
 def register(mcp):
-    @mcp.tool()
+    # @mcp.tool()  # disabled — use tro_ly for browser tasks
     def doc_trang_web(url: str, max_chars: int = 1500) -> str:
         """Tải một URL và trả về nội dung text đã được làm sạch (loại bỏ HTML).
 
